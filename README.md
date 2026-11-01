@@ -127,15 +127,39 @@ Repository hiện chứa cả Backend và Frontend trong cùng một dự án.
 
 ### Bước 2: Cấu hình Database
 
-Khởi động MySQL Server và tạo database:
+Khởi động MySQL Server 8.x.
 
-```sql
-CREATE DATABASE smart_fence_iot
-CHARACTER SET utf8mb4
-COLLATE utf8mb4_unicode_ci;
+#### 2.1. Khởi tạo Database
+
+File cấu trúc database được lưu tại:
+
+```text
+database/schema.sql
 ```
 
-Tiếp theo, cấu hình thông tin kết nối MySQL trong:
+File này chứa câu lệnh tạo database `smart_fence_iot` và cấu trúc của 6 bảng:
+
+- `devices`
+- `device_components`
+- `device_commands`
+- `intrusion_events`
+- `sensor_readings`
+- `cameras`
+
+Có thể import bằng MySQL Workbench:
+
+1. Mở MySQL Workbench và kết nối MySQL Server.
+2. Chọn Server → Data Import.
+3. Chọn Import from Self-Contained File.
+4. Chọn file `database/schema.sql` trong thư mục dự án.
+5. Nhấn Start Import.
+6. Kiểm tra database `smart_fence_iot` đã xuất hiện và có đủ 6 bảng.
+
+Lưu ý: File `schema.sql` dùng để khởi tạo database mới. Không chạy lại trên database đã tồn tại đầy đủ các bảng vì các câu lệnh `CREATE TABLE` có thể bị lỗi trùng bảng. File chỉ chứa cấu trúc, không chứa dữ liệu thiết bị hoặc dữ liệu mẫu.
+
+#### 2.2. Cấu hình kết nối Backend
+
+Cấu hình thông tin kết nối MySQL trong:
 
 ```text
 backend/src/main/resources/application.properties
@@ -143,7 +167,7 @@ backend/src/main/resources/application.properties
 
 Có thể tham khảo cấu trúc cấu hình trong `application-example.properties`.
 
-Điền thông tin kết nối phù hợp với máy tính cá nhân:
+Điền thông tin phù hợp với máy tính cá nhân:
 
 - Database URL.
 - Database username.
@@ -151,13 +175,17 @@ Có thể tham khảo cấu trúc cấu hình trong `application-example.propert
 
 Không đưa mật khẩu hoặc thông tin bí mật cá nhân lên GitHub.
 
-Lưu ý: Một số thay đổi cấu trúc database của chức năng bật/tắt hệ thống đang có file migration thủ công tại:
+#### 2.3. Lưu ý về Migration
+
+Một số thay đổi cấu trúc database phục vụ chức năng bật/tắt hệ thống đã được phản ánh trong `database/schema.sql`.
+
+Nếu sử dụng database cũ, cần kiểm tra cấu trúc hiện tại trước khi áp dụng file migration thủ công tại:
 
 ```text
 backend/src/main/resources/db/manual-migration/
 ```
 
-Migration này chưa được xác nhận đã chạy. Cần kiểm tra và thực hiện migration theo đúng hướng dẫn trước khi sử dụng các chức năng phụ thuộc vào cấu trúc database mới.
+Không chạy migration một cách máy móc trên database đã có các cột tương ứng, tránh lỗi trùng cột hoặc ảnh hưởng dữ liệu hiện có.
 
 ### Bước 3: Cấu hình MQTT Broker
 
