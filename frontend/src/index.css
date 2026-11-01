@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Thiết lập nền navy và màn hình tối thiểu 1280px */
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: #070d18;
+  color: #f8fafc;
+  min-width: 1280px;
+  overflow-x: auto;
+}

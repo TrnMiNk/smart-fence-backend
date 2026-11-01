@@ -1,0 +1,27 @@
+﻿# Environment files
+**/.env
+**/.env.*
+!**/.env.example
+
+# Backend - Gradle and compiled files
+/backend/.gradle/
+/backend/build/
+/backend/bin/
+
+# Backend - local configuration
+/backend/src/main/resources/application.properties
+/backend/src/main/resources/application-local.properties
+
+# Frontend - dependencies and build
+/frontend/node_modules/
+/frontend/dist/
+/frontend/tsconfig.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
