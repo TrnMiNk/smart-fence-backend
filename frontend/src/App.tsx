@@ -11,6 +11,7 @@ import {
   X,
   PanelLeftClose,
   PanelLeftOpen,
+  Menu,
 } from 'lucide-react';
 import { StoreProvider, useStore } from './store';
 import { StatusBadge } from './components/StatusBadge';
@@ -48,6 +49,8 @@ const AppContent: React.FC = () => {
       return false;
     }
   });
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const sidebarCollapsed = isCollapsed && !mobileNavOpen;
 
   useEffect(() => {
     try {
@@ -67,23 +70,24 @@ const AppContent: React.FC = () => {
   ];
 
   return (
-    <div className="flex h-screen bg-navy-950 text-slate-100 overflow-hidden font-sans select-none min-w-[1280px]">
+    <div className="flex min-h-screen bg-[#080d17] text-slate-100 font-sans">
+      {mobileNavOpen && <button type="button" aria-label={t('close')} onClick={() => setMobileNavOpen(false)} className="fixed inset-0 z-30 bg-black/60 md:hidden" />}
       {/* ========================================================= */}
       {/* SIDEBAR THU GỌN / MỞ RỘNG (72px / 240px) */}
       {/* ========================================================= */}
       <aside
         className={`${
-          isCollapsed ? 'w-[72px]' : 'w-60'
-        } bg-navy-900 border-r border-navy-800 flex flex-col justify-between shrink-0 transition-[width] duration-300 ease-in-out`}
+          sidebarCollapsed ? 'md:w-[72px]' : 'md:w-60'
+        } w-60 fixed inset-y-0 left-0 z-40 bg-[#0d1523] border-r border-white/[0.07] flex flex-col justify-between shrink-0 transition-[width,transform] duration-300 ease-in-out md:sticky md:top-0 md:h-screen ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
       >
         <div>
           {/* Logo & nút thu gọn */}
           <div
             className={`p-4 border-b border-navy-800 flex items-center ${
-              isCollapsed ? 'justify-center flex-col space-y-3' : 'justify-between space-x-2'
+              sidebarCollapsed ? 'justify-center flex-col space-y-3' : 'justify-between space-x-2'
             }`}
           >
-            {!isCollapsed ? (
+            {!sidebarCollapsed ? (
               <div className="flex items-center space-x-3 overflow-hidden min-w-0">
                 <div className="w-9 h-9 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 shrink-0">
                   <Shield className="w-5 h-5" />
@@ -110,10 +114,10 @@ const AppContent: React.FC = () => {
               type="button"
               onClick={() => setIsCollapsed(!isCollapsed)}
               className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-navy-850 transition shrink-0"
-              title={isCollapsed ? t('expand_sidebar') : t('collapse_sidebar')}
-              aria-label={isCollapsed ? t('expand_sidebar') : t('collapse_sidebar')}
+              title={sidebarCollapsed ? t('expand_sidebar') : t('collapse_sidebar')}
+              aria-label={sidebarCollapsed ? t('expand_sidebar') : t('collapse_sidebar')}
             >
-              {isCollapsed ? (
+              {sidebarCollapsed ? (
                 <PanelLeftOpen className="w-5 h-5" />
               ) : (
                 <PanelLeftClose className="w-5 h-5" />
@@ -132,10 +136,10 @@ const AppContent: React.FC = () => {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setPage(item.id)}
+                  onClick={() => { setPage(item.id); setMobileNavOpen(false); }}
                   title={itemTitle}
                   className={`w-full flex items-center ${
-                    isCollapsed ? 'justify-center px-0 py-3' : 'px-3 py-2.5'
+                    sidebarCollapsed ? 'justify-center px-0 py-3' : 'px-3 py-2.5'
                   } rounded-lg text-left transition ${
                     isActive
                       ? 'bg-blue-600 text-white font-medium shadow'
@@ -147,7 +151,7 @@ const AppContent: React.FC = () => {
                       isActive ? 'text-white' : 'text-slate-400'
                     }`}
                   />
-                  {!isCollapsed && (
+                  {!sidebarCollapsed && (
                     <span className="ml-3 text-xs font-medium truncate">{itemTitle}</span>
                   )}
                 </button>
@@ -159,32 +163,24 @@ const AppContent: React.FC = () => {
         {/* Footer Sidebar */}
         <div
           className={`p-3 border-t border-navy-800 text-[11px] text-slate-500 flex items-center ${
-            isCollapsed ? 'justify-center' : 'justify-between'
+            sidebarCollapsed ? 'justify-center' : 'justify-between'
           }`}
         >
-          {isCollapsed ? (
-            <span title={t('simulated_data_badge')}>v1.0</span>
-          ) : (
-            <>
-              <span>v1.0.0</span>
-              <span className="px-2 py-0.5 rounded bg-navy-800 text-slate-400 border border-navy-700">
-                {t('simulated_data_badge')}
-              </span>
-            </>
-          )}
+          <span>v1.0.0</span>
         </div>
       </aside>
 
       {/* ========================================================= */}
       {/* KHU VỰC NỘI DUNG CHÍNH (Header + Nội dung trang) */}
       {/* ========================================================= */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="min-w-0 flex-1 flex flex-col">
         {/* Header trên cùng */}
-        <header className="h-16 bg-navy-900 border-b border-navy-800 px-6 flex items-center justify-between shrink-0">
-          <div className="flex items-center space-x-4">
-            <span className="text-sm font-semibold text-slate-200">{t('app_title')}</span>
+        <header className="sticky top-0 z-20 min-h-16 bg-[#0d1523]/95 backdrop-blur border-b border-white/[0.07] px-4 sm:px-6 flex items-center justify-between shrink-0">
+          <div className="flex min-w-0 items-center space-x-3 sm:space-x-4">
+            <button type="button" onClick={() => setMobileNavOpen(true)} aria-label={t('open_navigation')} className="rounded-lg border border-white/10 p-2 text-slate-300 md:hidden"><Menu className="h-4 w-4" /></button>
+            <span className="hidden text-sm font-semibold text-slate-200 sm:inline">{t('app_title')}</span>
             <StatusBadge status={securityStatus} />
-            <span className="text-[11px] text-slate-400 border-l border-navy-700 pl-4">
+            <span className="hidden text-[11px] text-slate-400 border-l border-navy-700 pl-4 sm:inline">
               {t('updated_at')} <span className="font-mono text-slate-200">{currentTime}</span>
             </span>
           </div>
@@ -236,7 +232,7 @@ const AppContent: React.FC = () => {
         )}
 
         {/* Nội dung trang theo state page */}
-        <main className="flex-1 overflow-y-auto p-6 bg-navy-950">
+        <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8 bg-[#080d17]">
           {page === 'overview' && <Overview />}
           {page === 'fence' && <Fence />}
           {page === 'sensitivity' && <Sensitivity />}

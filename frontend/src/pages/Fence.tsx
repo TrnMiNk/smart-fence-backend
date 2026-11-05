@@ -5,6 +5,7 @@ import { Card } from '../components/Card';
 import { StatusBadge } from '../components/StatusBadge';
 import { Device, DeviceComponent } from '../types';
 import { t } from '../i18n';
+import { RainSensorReading } from '../components/RainSensorReading';
 import { BackendCamera, getCameraByComponent, setSirenState } from '../services/deviceService';
 
 type CommandFeedback = { componentId: string; kind: 'success' | 'error' | 'pending'; message: string };
@@ -28,7 +29,7 @@ export const Fence: React.FC = () => {
   const cameraParentOffline = cameraDevice?.isOnline === false;
   const cameraHasOfflineWarning = cameraOffline || cameraParentOffline;
   const fenceDevices = useMemo(
-    () => devices.filter((device) => (device.components ?? []).some((component) => ['LASER', 'BUZZER', 'DHT22', 'CAMERA'].includes(component.type.trim().toUpperCase()))),
+    () => devices.filter((device) => (device.components ?? []).some((component) => ['LASER', 'BUZZER', 'RAIN_SENSOR', 'CAMERA'].includes(component.type.trim().toUpperCase()))),
     [devices],
   );
 
@@ -56,7 +57,7 @@ export const Fence: React.FC = () => {
   const componentIcon = (type: string) => {
     const normalized = type.trim().toUpperCase();
     if (normalized === 'LASER') return <Radio className="w-4 h-4 text-indigo-400" />;
-    if (normalized === 'DHT22') return <Droplets className="w-4 h-4 text-blue-400" />;
+    if (normalized === 'RAIN_SENSOR') return <Droplets className="w-4 h-4 text-blue-400" />;
     if (normalized === 'BUZZER') return <Volume2 className="w-4 h-4 text-amber-400" />;
     if (normalized === 'CAMERA') return <Video className="w-4 h-4 text-emerald-400" />;
     return <Cpu className="w-4 h-4 text-slate-400" />;
@@ -80,9 +81,9 @@ export const Fence: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-[1500px] space-y-5 sm:space-y-7">
       <div>
-        <h1 className="text-xl font-bold text-white">{t('fence_devices_title')}</h1>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-400">PERIMETER MONITORING</p><h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">{t('fence_devices_title')}</h1>
         <p className="mt-1 text-xs text-slate-400">{t('fence_api_data_note')}</p>
       </div>
 
@@ -95,7 +96,7 @@ export const Fence: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {fenceDevices.map((device) => {
-            const components = (device.components ?? []).filter((component) => ['LASER', 'BUZZER', 'DHT22', 'CAMERA'].includes(component.type.trim().toUpperCase()));
+            const components = (device.components ?? []).filter((component) => ['LASER', 'BUZZER', 'RAIN_SENSOR', 'CAMERA'].includes(component.type.trim().toUpperCase()));
             return (
               <Card key={device.id} className={selectedDevice?.id === device.id ? 'border-blue-600/70' : ''}>
                 <button type="button" onClick={() => setSelectedDeviceId(device.id)} className="mb-4 flex w-full items-center justify-between text-left">
@@ -127,7 +128,7 @@ export const Fence: React.FC = () => {
                           )}
                         </div>
                         {type === 'LASER' && <p className="mt-2 text-[11px] text-slate-400">{t('fence_laser_state_unavailable')}</p>}
-                        {type === 'DHT22' && <p className="mt-2 text-[11px] text-slate-400">{t('fence_sensor_detail_note')}</p>}
+        {type === 'RAIN_SENSOR' && <RainSensorReading componentId={component.id} />}
                         {type === 'CAMERA' && <div className="mt-2 flex items-center justify-between gap-3"><p className="text-[11px] text-slate-400">{t('camera_backend_status')}: {component.status}</p><button type="button" onClick={() => void loadCamera(component.id)} className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-blue-500"><Video className="h-3.5 w-3.5" />{t('view_camera')}</button></div>}
                         {componentFeedback && <p role={componentFeedback.kind === 'error' ? 'alert' : 'status'} className={`mt-2 text-[11px] ${componentFeedback.kind === 'success' ? 'text-emerald-400' : componentFeedback.kind === 'error' ? 'text-red-400' : 'text-amber-300'}`}>{componentFeedback.message}</p>}
                         {type === 'BUZZER' && acknowledgedSirenState[component.id] !== undefined && componentFeedback?.kind !== 'error' && <p className="mt-2 flex items-center gap-1 text-[11px] text-emerald-400"><Power className="h-3 w-3" />{t(acknowledgedSirenState[component.id] ? 'fence_siren_on_ack' : 'fence_siren_off_ack')}</p>}
@@ -166,7 +167,7 @@ export const Fence: React.FC = () => {
             </div>
             {cameraHasOfflineWarning && <p role="alert" className="rounded border border-amber-700/60 bg-amber-950/40 p-2 text-xs text-amber-300">{t('camera_offline_warning')}</p>}
             {camera?.streamUrl?.trim() && <p className="text-[11px] text-slate-400">{t('camera_connection_test_note')}</p>}
-            <div className="flex min-h-[320px] items-center justify-center rounded border border-navy-800 bg-black p-2">
+            <div className="flex min-h-[220px] items-center justify-center rounded border border-navy-800 bg-black p-2 sm:min-h-[320px]">
               {cameraLoading ? <p className="text-xs text-slate-400">{t('camera_loading')}</p> : cameraError ? <div role="alert" className="space-y-2 text-center text-xs text-red-400"><VideoOff className="mx-auto h-9 w-9 text-slate-600" /><p>{cameraError}</p></div> : !camera ? <div className="space-y-2 text-center text-xs text-slate-400"><VideoOff className="mx-auto h-9 w-9 text-slate-600" /><p>{t('camera_not_registered')}</p></div> : !camera.streamUrl?.trim() ? <div className="space-y-2 text-center text-xs text-slate-400"><VideoOff className="mx-auto h-9 w-9 text-slate-600" /><p>{t('camera_stream_url_missing')}</p></div> : streamAttempt === 0 ? <div className="space-y-2 text-center text-xs text-slate-400"><VideoOff className="mx-auto h-9 w-9 text-slate-600" /><p>{t('camera_stream_idle')}</p></div> : <img key={`${camera.id}-${streamAttempt}`} src={`${camera.streamUrl}${camera.streamUrl.includes('?') ? '&' : '?'}_retry=${streamAttempt}`} alt={t('camera_image_alt')} onLoad={() => setStreamState('loaded')} onError={() => setStreamState('error')} onLoadStart={() => setStreamState('loading')} className="max-h-[65vh] w-full object-contain" />}
             </div>
             {streamState === 'error' && <p role="alert" className="text-xs text-amber-300">{t('camera_stream_unreachable')}</p>}

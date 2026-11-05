@@ -1,5 +1,6 @@
 import { Device, DeviceComponent, DeviceType } from '../types';
 import { ApiError, apiRequest } from './apiClient';
+import { t, TranslationKey } from '../i18n';
 
 interface BackendDevice {
   id: number;
@@ -19,25 +20,43 @@ interface BackendComponent {
   status: string;
 }
 
-const componentToFrontend = (component: BackendComponent): DeviceComponent => ({
-  id: String(component.id),
-  code: component.componentCode,
-  name: component.componentName,
-  type: component.componentType,
-  status: component.status,
-});
-
-const typeForComponents = (components: DeviceComponent[]): DeviceType => {
-  const types = [...new Set(components.map((component) => component.type.toUpperCase()))];
-  if (types.length !== 1) return 'unknown';
-  if (types.includes('LASER')) return 'laser';
-  if (types.includes('DHT22')) return 'humidity';
-  if (types.includes('BUZZER')) return 'siren';
-  if (types.includes('CAMERA')) return 'camera';
-  return 'unknown';
+const canonicalComponentType = (value: string): DeviceComponent['type'] | null => {
+  switch (value.trim().toUpperCase()) {
+    case 'RAIN_SENSOR': return 'RAIN_SENSOR';
+    case 'LASER':
+    case 'LASER_SENSOR': return 'LASER';
+    case 'BUZZER':
+    case 'SIREN': return 'BUZZER';
+    case 'CAMERA': return 'CAMERA';
+    default: return null;
+  }
 };
 
-const deviceToFrontend = (device: BackendDevice, components: DeviceComponent[]): Device => {
+const componentToFrontend = (component: BackendComponent): DeviceComponent | null => {
+  const type = typeof component.componentType === 'string' ? canonicalComponentType(component.componentType) : null;
+  if (!type || !Number.isInteger(component.id) || component.id <= 0 || component.deviceId <= 0 || !Number.isInteger(component.deviceId) || typeof component.componentCode !== 'string' || !component.componentCode.trim()) return null;
+  const labelKey = `component_type_${type.toLowerCase()}` as TranslationKey;
+  return {
+    id: String(component.id),
+    code: component.componentCode.trim(),
+    name: t(labelKey),
+    type,
+    status: typeof component.status === 'string' && component.status.trim() ? component.status.trim() : '—',
+  };
+};
+
+const typeForComponents = (components: DeviceComponent[]): DeviceType | null => {
+  const types = components.map((component) => component.type.trim().toUpperCase());
+  if (types.includes('RAIN_SENSOR')) return 'rain_sensor';
+  if (types.includes('LASER')) return 'laser';
+  if (types.includes('BUZZER')) return 'siren';
+  if (types.includes('CAMERA')) return 'camera';
+  return null;
+};
+
+const deviceToFrontend = (device: BackendDevice, components: DeviceComponent[]): Device | null => {
+  const type = typeForComponents(components);
+  if (!type) return null;
   const status = device.status.trim().toUpperCase();
   if (status !== 'ONLINE' && status !== 'OFFLINE') {
     throw new Error(`Trạng thái thiết bị không được hỗ trợ: ${device.status}`);
@@ -47,7 +66,7 @@ const deviceToFrontend = (device: BackendDevice, components: DeviceComponent[]):
     id: String(device.id),
     code: device.deviceCode,
     displayName: device.deviceName,
-    type: typeForComponents(components),
+    type,
     location: 'unknown',
     isOnline: status === 'ONLINE',
     systemState: device.systemState == null ? 'UNKNOWN' : ['ON', 'OFF', 'UNKNOWN'].includes(device.systemState.trim().toUpperCase())
@@ -66,8 +85,12 @@ export const getDevices = async (): Promise<Device[]> => {
   return Promise.all(backendDevices.map(async (device) => {
     const backendComponents = await apiRequest<BackendComponent[]>(`/api/components/device/${device.id}`);
     if (!Array.isArray(backendComponents)) throw new Error(`Danh sách linh kiện của thiết bị ${device.deviceCode} không hợp lệ.`);
-    return deviceToFrontend(device, backendComponents.map(componentToFrontend));
-  }));
+    const components = backendComponents
+      .filter((component) => component && component.deviceId === device.id)
+      .map(componentToFrontend)
+      .filter((component): component is DeviceComponent => component !== null);
+    return deviceToFrontend(device, components);
+  })).then((devices) => devices.filter((device): device is Device => device !== null));
 };
 
 interface BackendCommand {

@@ -1,29 +1,27 @@
 
 package smart_fence_backend.dto;
 
-import java.math.BigDecimal;
-
 public class SensorReadingRequest {
 
-    private BigDecimal temperature;
-    private BigDecimal humidity;
+    private Boolean rainDetected;
+    private Integer rainLevel;
 
     public SensorReadingRequest() {
     }
 
-    public BigDecimal getTemperature() {
-        return temperature;
+    public Boolean getRainDetected() {
+        return rainDetected;
     }
 
-    public void setTemperature(BigDecimal temperature) {
-        this.temperature = temperature;
+    public void setRainDetected(Boolean rainDetected) {
+        this.rainDetected = rainDetected;
     }
 
-    public BigDecimal getHumidity() {
-        return humidity;
+    public Integer getRainLevel() {
+        return rainLevel;
     }
 
-    public void setHumidity(BigDecimal humidity) {
-        this.humidity = humidity;
+    public void setRainLevel(Integer rainLevel) {
+        this.rainLevel = rainLevel;
     }
 }

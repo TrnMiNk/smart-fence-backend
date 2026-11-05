@@ -9,14 +9,12 @@ import {
   FenceZone,
   Device,
   SensitivityConfig,
-  ChartPoint,
   ToastInfo,
 } from './types';
 import {
   initialZones,
   defaultSensitivityConfig,
   presetSensitivityConfigs,
-  generateInitialChartData,
 } from './mockData';
 import { getDevices, setSirenState } from './services/deviceService';
 import { setLanguage as setI18nLanguage, getLanguage } from './i18n';
@@ -28,17 +26,21 @@ const validSensitivityConfig = (value: unknown): value is SensitivityConfig => {
   const config = value as Partial<SensitivityConfig>;
   return Number.isInteger(config.laserSensitivity) && config.laserSensitivity! >= 10 && config.laserSensitivity! <= 100 &&
     Number.isInteger(config.confirmCount) && config.confirmCount! >= 1 && config.confirmCount! <= 10 &&
-    [1, 2, 3, 5, 10].includes(config.confirmWindow!) &&
-    Number.isInteger(config.humidityThreshold) && config.humidityThreshold! >= 30 && config.humidityThreshold! <= 95;
+    [1, 2, 3, 5, 10].includes(config.confirmWindow!);
 };
 
 const normalizeSensitivityMode = (config: SensitivityConfig): SensitivityConfig => {
   const preset = (['normal', 'strong_wind', 'leaf_fall'] as const).find((mode) => {
     const values = presetSensitivityConfigs[mode];
     return config.laserSensitivity === values.laserSensitivity && config.confirmCount === values.confirmCount &&
-      config.confirmWindow === values.confirmWindow && config.humidityThreshold === values.humidityThreshold;
+      config.confirmWindow === values.confirmWindow;
   });
-  return { ...config, mode: preset ?? 'custom' };
+  return {
+    mode: preset ?? 'custom',
+    laserSensitivity: config.laserSensitivity,
+    confirmCount: config.confirmCount,
+    confirmWindow: config.confirmWindow,
+  };
 };
 
 interface StoreContextValue {
@@ -56,8 +58,6 @@ interface StoreContextValue {
   dismissDangerBanner: () => void;
 
   // Môi trường
-  humidity: number;
-  chartData: ChartPoint[];
 
   // Hàng rào & Thiết bị
   zones: FenceZone[];
@@ -113,9 +113,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [currentTime, setCurrentTime] = useState<string>(getCurrentTimeStr);
   const [dangerBannerDismissed, setDangerBannerDismissed] = useState<boolean>(false);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(getCurrentTimeStr()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   // Số liệu môi trường giả lập ban đầu
-  const [humidity, setHumidity] = useState<number>(68);
-  const [chartData, setChartData] = useState<ChartPoint[]>(generateInitialChartData);
 
   // Danh sách đoạn hàng rào & thiết bị (đọc qua service)
   const [zones] = useState<FenceZone[]>(initialZones);
@@ -174,8 +177,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Quản lý Toast
   const [toasts, setToasts] = useState<ToastInfo[]>([]);
-
-  // Cờ theo dõi vượt ngưỡng độ ẩm
 
   // Hàm hiển thị Toast thông báo
   const showToast = (messageKey: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -327,8 +328,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     currentTime,
     dangerBannerDismissed,
     dismissDangerBanner,
-    humidity,
-    chartData,
     zones,
     selectedZoneId,
     setSelectedZoneId,

@@ -71,14 +71,14 @@ export const Alerts: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-[1500px] space-y-5 sm:space-y-7">
       <div>
-        <h1 className="text-xl font-bold text-white">{t('alerts_title')}</h1>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-400">EVENT REVIEW</p><h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">{t('alerts_title')}</h1>
         <p className="text-xs text-slate-400 mt-0.5">{t('alerts_desc')}</p>
       </div>
 
       <Card>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-xs text-slate-400 font-medium mb-1.5">{t('filter_event_type')}</label>
             <select

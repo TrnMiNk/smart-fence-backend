@@ -2,12 +2,17 @@
 package smart_fence_backend.mqtt;
 
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.JsonNode;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import smart_fence_backend.dto.SensorReadingRequest;
 import smart_fence_backend.dto.DeviceCommandAckPayload;
+import smart_fence_backend.dto.IntrusionEventReceipt;
+import smart_fence_backend.dto.IntrusionEventRequest;
 import smart_fence_backend.entity.Device;
 import smart_fence_backend.entity.DeviceComponent;
 import smart_fence_backend.repository.DeviceComponentRepository;
@@ -16,17 +21,17 @@ import smart_fence_backend.service.DeviceCommandService;
 import smart_fence_backend.service.IntrusionEventService;
 import smart_fence_backend.service.SensorReadingService;
 
-import java.math.BigDecimal;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Configuration
 public class MqttSubscriber {
 
+    private final MqttService mqttService;
     private final DeviceCommandService deviceCommandService;
     private final SensorReadingService sensorReadingService;
     private final IntrusionEventService intrusionEventService;
@@ -36,6 +41,7 @@ public class MqttSubscriber {
     private final PendingSystemAckRegistry pendingSystemAckRegistry;
 
     public MqttSubscriber(
+            MqttService mqttService,
             DeviceCommandService deviceCommandService,
             SensorReadingService sensorReadingService,
             IntrusionEventService intrusionEventService,
@@ -44,6 +50,7 @@ public class MqttSubscriber {
             JsonMapper jsonMapper,
             PendingSystemAckRegistry pendingSystemAckRegistry
     ) {
+        this.mqttService = mqttService;
         this.deviceCommandService = deviceCommandService;
         this.sensorReadingService = sensorReadingService;
         this.intrusionEventService = intrusionEventService;
@@ -56,7 +63,8 @@ public class MqttSubscriber {
     }
 
     @Bean
-    public ApplicationRunner subscribeToTopics(MqttService mqttService) {
+    @ConditionalOnProperty(name = "mqtt.enabled", havingValue = "true", matchIfMissing = true)
+    public ApplicationRunner subscribeToTopics() {
 
         return args -> {
 
@@ -82,59 +90,25 @@ public class MqttSubscriber {
 
         try {
             String deviceCode = extractDeviceCode(topic, "telemetry");
-
-            Pattern temperaturePattern = Pattern.compile(
-                    "\"?temperature\"?\\s*:\\s*(-?\\d+(?:\\.\\d+)?)"
-            );
-
-            Pattern humidityPattern = Pattern.compile(
-                    "\"?humidity\"?\\s*:\\s*(-?\\d+(?:\\.\\d+)?)"
-            );
-
-            Matcher temperatureMatcher =
-                    temperaturePattern.matcher(payload);
-
-            Matcher humidityMatcher =
-                    humidityPattern.matcher(payload);
-
-            if (!temperatureMatcher.find()
-                    || !humidityMatcher.find()) {
-                throw new IllegalArgumentException(
-                        "Invalid telemetry payload: " + payload
-                );
-            }
-
-            BigDecimal temperature = new BigDecimal(
-                    temperatureMatcher.group(1)
-            );
-
-            BigDecimal humidity = new BigDecimal(
-                    humidityMatcher.group(1)
-            );
+            SensorReadingRequest request = parseTelemetry(payload);
 
             Device device = findDevice(deviceCode);
 
-            DeviceComponent dht22 = findComponent(
+            DeviceComponent rainSensor = findComponent(
                     device.getId(),
-                    "DHT22"
+                    "RAIN_SENSOR"
             );
 
-            SensorReadingRequest request =
-                    new SensorReadingRequest();
-
-            request.setTemperature(temperature);
-            request.setHumidity(humidity);
-
             var savedReading = sensorReadingService.saveReading(
-                    dht22.getId(),
+                    rainSensor.getId(),
                     request
             );
 
             System.out.println(
                     "Telemetry saved: DEVICE=" + deviceCode
-                            + ", COMPONENT_ID=" + dht22.getId()
-                            + ", TEMPERATURE=" + temperature
-                            + ", HUMIDITY=" + humidity
+                            + ", COMPONENT_ID=" + rainSensor.getId()
+                            + ", RAIN_DETECTED=" + request.getRainDetected()
+                            + ", RAIN_LEVEL=" + request.getRainLevel()
                             + ", READING_ID=" + savedReading.getId()
             );
 
@@ -145,71 +119,109 @@ public class MqttSubscriber {
         }
     }
 
+    private SensorReadingRequest parseTelemetry(String payload) throws Exception {
+        JsonNode root = jsonMapper.readTree(payload);
+        if (root == null || !root.isObject()) {
+            throw new IllegalArgumentException("Telemetry must be a JSON object");
+        }
+
+        JsonNode rainDetected = root.get("rainDetected");
+        JsonNode rainLevel = root.get("rainLevel");
+        if (rainDetected == null || !rainDetected.isBoolean()) {
+            throw new IllegalArgumentException("rainDetected must be a boolean");
+        }
+        if (rainLevel == null || !rainLevel.isIntegralNumber() || !rainLevel.canConvertToInt()) {
+            throw new IllegalArgumentException("rainLevel must be an integer ADC value");
+        }
+        int adcValue = rainLevel.intValue();
+        if (adcValue < 0 || adcValue > 4095) {
+            throw new IllegalArgumentException("rainLevel must be between 0 and 4095");
+        }
+
+        SensorReadingRequest request = new SensorReadingRequest();
+        request.setRainDetected(rainDetected.booleanValue());
+        request.setRainLevel(adcValue);
+        return request;
+    }
+
     // Xu ly su kien xam nhap
     private void handleIntrusionEvent(String topic, String payload) {
 
         System.out.println("MQTT EVENT RAW: [" + payload + "]");
 
+        String deviceCode;
         try {
-            String deviceCode = extractDeviceCode(topic, "events");
-
-            Pattern eventTypePattern = Pattern.compile(
-                    "\"?eventType\"?\\s*:\\s*\"?([A-Za-z_]+)\"?"
-            );
-
-            Pattern descriptionPattern = Pattern.compile(
-                    "\"?description\"?\\s*:\\s*\"?([^\"}]*)\"?"
-            );
-
-            Matcher eventTypeMatcher =
-                    eventTypePattern.matcher(payload);
-
-            Matcher descriptionMatcher =
-                    descriptionPattern.matcher(payload);
-
-            if (!eventTypeMatcher.find()) {
-                throw new IllegalArgumentException(
-                        "Missing eventType in payload: " + payload
-                );
-            }
-
-            String eventType = eventTypeMatcher.group(1);
-
-            if (!"LASER_BLOCKED".equals(eventType)) {
-                throw new IllegalArgumentException(
-                        "Unsupported event type: " + eventType
-                );
-            }
-
-            String description = descriptionMatcher.find()
-                    ? descriptionMatcher.group(1).trim()
-                    : "Laser beam interrupted";
-
-            Device device = findDevice(deviceCode);
-
-            DeviceComponent laser = findComponent(
-                    device.getId(),
-                    "LASER"
-            );
-
-            var savedEvent = intrusionEventService.createIntrusionEvent(
-                    device.getId(),
-                    laser.getId(),
-                    description
-            );
-
-            System.out.println(
-                    "Intrusion event saved: DEVICE=" + deviceCode
-                            + ", EVENT_ID=" + savedEvent.getId()
-                            + ", EVENT_TYPE=" + savedEvent.getEventType()
-                            + ", STATUS=" + savedEvent.getEventStatus()
-            );
-
+            deviceCode = extractDeviceCode(topic, "events");
         } catch (Exception e) {
-            System.err.println(
-                    "Failed to process intrusion event: " + e.getMessage()
-            );
+            System.err.println("Failed to process intrusion event: " + e.getMessage());
+            return;
         }
+
+        JsonNode root;
+        try {
+            root = jsonMapper.readTree(payload);
+        } catch (Exception e) {
+            // Malformed JSON has no trustworthy eventId to correlate a receipt with.
+            System.err.println("Malformed intrusion event JSON; no receipt sent: " + e.getMessage());
+            return;
+        }
+
+        JsonNode eventIdNode = root != null && root.isObject() ? root.get("eventId") : null;
+        if (eventIdNode == null || !eventIdNode.isString()
+                || eventIdNode.asString().isBlank()) {
+            System.err.println("Intrusion event has no readable eventId; no receipt sent");
+            return;
+        }
+
+        IntrusionEventRequest request = new IntrusionEventRequest();
+        request.setEventId(eventIdNode.asString());
+        request.setEventType(readString(root, "eventType"));
+        request.setDescription(readString(root, "description"));
+        request.setOccurredAt(readString(root, "occurredAt"));
+
+        IntrusionEventReceipt receipt;
+        try {
+            receipt = intrusionEventService.processMqttEvent(deviceCode, request);
+        } catch (DataIntegrityViolationException e) {
+            // A concurrent insert may have won the unique-key race. Resolve it
+            // only after the failed insert transaction has rolled back.
+            receipt = intrusionEventService.resolveConcurrentMqttEvent(deviceCode, request)
+                    .orElse(null);
+            if (receipt == null) {
+                System.err.println("Failed to persist intrusion event: " + e.getMessage());
+                return;
+            }
+        } catch (Exception e) {
+            // No receipt on persistence/commit failure; ESP32 retries the same eventId.
+            System.err.println("Failed to persist intrusion event; no receipt sent: " + e.getMessage());
+            return;
+        }
+
+        if (receipt == null) return;
+        try {
+            Map<String, Object> receiptPayload = new LinkedHashMap<>();
+            receiptPayload.put("eventId", receipt.getEventId());
+            receiptPayload.put("status", receipt.getStatus());
+            if (receipt.getReason() != null) {
+                receiptPayload.put("reason", receipt.getReason());
+            }
+            receiptPayload.put("acknowledgedAt", receipt.getAcknowledgedAt());
+            mqttService.publish(
+                    "smart-fence/" + deviceCode + "/event-receipts",
+                    jsonMapper.writeValueAsString(receiptPayload));
+            System.out.println("Intrusion event receipt sent: DEVICE=" + deviceCode
+                    + ", EVENT_ID=" + receipt.getEventId()
+                    + ", STATUS=" + receipt.getStatus());
+        } catch (Exception e) {
+            // The event transaction has already committed. A later retry becomes
+            // DUPLICATE and causes another receipt attempt.
+            System.err.println("Failed to publish intrusion event receipt: " + e.getMessage());
+        }
+    }
+
+    private String readString(JsonNode root, String fieldName) {
+        JsonNode value = root.get(fieldName);
+        return value != null && value.isString() ? value.asString() : null;
     }
 
     // Xu ly ACK

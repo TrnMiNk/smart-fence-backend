@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 import smart_fence_backend.entity.IntrusionEvent;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface IntrusionEventRepository
@@ -19,5 +20,10 @@ public interface IntrusionEventRepository
 
     List<IntrusionEvent> findByEventStatusOrderByDetectedAtDesc(
             String eventStatus
+    );
+
+    Optional<IntrusionEvent> findByDevice_DeviceCodeAndEventId(
+            String deviceCode,
+            String eventId
     );
 }

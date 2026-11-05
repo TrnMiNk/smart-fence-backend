@@ -1,6 +1,6 @@
 // Trang Tổng quan: số liệu cảm biến, thiết bị và sự kiện lấy từ Backend.
 import React, { useEffect, useMemo, useState } from 'react';
-import { ShieldAlert, Cpu, Bell, Droplets, Volume2, Power } from 'lucide-react';
+import { ShieldAlert, Cpu, Bell, Droplets, Power, CloudRain, Activity } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { useStore } from '../store';
 import { Card } from '../components/Card';
@@ -27,6 +27,7 @@ const eventStatus = (value: string): { badge?: BadgeVariant; label: string } => 
 
 const eventTypeLabel = (value: string): string => {
   if (value.trim().toUpperCase() === 'LASER_BLOCKED') return t('event_laser_blocked');
+  if (value.trim().toUpperCase() === 'RAIN_DETECTED') return t('event_rain_detected');
   return value.replace(/_/g, ' ');
 };
 
@@ -82,9 +83,9 @@ export const Overview: React.FC = () => {
     }
   };
 
-  const dhtComponent = useMemo(
+  const rainComponent = useMemo(
     () => devices.flatMap((device) => (device.components ?? []).map((component) => ({ device, component })))
-      .find(({ component }) => component.type.trim().toUpperCase() === 'DHT22'),
+      .find(({ component }) => component.type.trim().toUpperCase() === 'RAIN_SENSOR'),
     [devices],
   );
 
@@ -92,11 +93,16 @@ export const Overview: React.FC = () => {
     if (devicesLoading) return;
     if (devicesError) {
       setSensorError(devicesError);
+      setLatestReading(null);
+      setHistory([]);
       setSensorLoading(false);
       return;
     }
-    if (!dhtComponent) {
+    if (!rainComponent) {
       setSensorMissing(true);
+      setLatestReading(null);
+      setHistory([]);
+      setSensorError(null);
       setSensorLoading(false);
       return;
     }
@@ -107,8 +113,8 @@ export const Overview: React.FC = () => {
     setSensorError(null);
     setSensorMissing(false);
     Promise.all([
-      getLatestSensorReading(Number(dhtComponent.component.id)),
-      getSensorHistory(Number(dhtComponent.component.id), start, end),
+      getLatestSensorReading(Number(rainComponent.component.id)),
+      getSensorHistory(Number(rainComponent.component.id), start, end),
     ])
       .then(([latest, readings]) => {
         if (active) {
@@ -121,14 +127,14 @@ export const Overview: React.FC = () => {
       })
       .finally(() => { if (active) setSensorLoading(false); });
     return () => { active = false; };
-  }, [devicesLoading, devicesError, dhtComponent]);
+  }, [devicesLoading, devicesError, rainComponent]);
 
   const sortedEvents = useMemo(
     () => [...events].sort((a, b) => b.detectedAt.localeCompare(a.detectedAt)),
     [events],
   );
   const recentEvents = sortedEvents.slice(0, 5);
-  const isDeviceOffline = Boolean(dhtComponent && !dhtComponent.device.isOnline);
+  const isDeviceOffline = Boolean(rainComponent && !rainComponent.device.isOnline);
   const securityBadge: BadgeVariant | null = useMemo(() => {
     if (eventsLoading || eventsError || devicesLoading || devicesError || devices.length === 0) return null;
     const pendingEvents = events.filter((event) => ['NEW', 'UNRESOLVED'].includes(event.eventStatus.trim().toUpperCase()));
@@ -141,21 +147,21 @@ export const Overview: React.FC = () => {
 
   const chartData = useMemo(
     () => history
-      .filter((reading) => reading.humidity !== null || reading.temperature !== null)
+      .filter((reading) => reading.rainLevel !== null)
       .map((reading) => ({
         time: new Date(reading.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        temperature: reading.temperature,
-        humidity: reading.humidity,
+        rainLevel: reading.rainLevel,
       })),
     [history],
   );
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-[1500px] space-y-5 sm:space-y-7">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">{t('nav_overview')}</h1>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-400">SMART FENCE / CONTROL CENTER</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">{t('nav_overview')}</h1>
+          <p className="text-xs text-slate-400 mt-1">
             {systemState === 'ON' ? t('monitoring_state_active') : systemState === 'OFF' ? t('monitoring_state_paused') : t('monitoring_state_unavailable')}
           </p>
         </div>
@@ -172,8 +178,8 @@ export const Overview: React.FC = () => {
       </div>
       {systemCommandMessage && <p role="status" className="-mt-4 text-xs text-slate-300">{systemCommandMessage}</p>}
 
-      <div className="grid grid-cols-5 gap-4">
-        <Card className="flex flex-col justify-between">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5 sm:gap-4">
+        <Card className="min-h-28 flex flex-col justify-between border-white/[0.08] bg-[#101a29]">
           <div className="flex items-center justify-between text-slate-400 text-xs">
             <span>{t('card_security_status')}</span>
             <ShieldAlert className="w-4 h-4 text-blue-400" />
@@ -182,7 +188,7 @@ export const Overview: React.FC = () => {
             {securityBadge ? <StatusBadge status={securityBadge} /> : <span className="text-sm text-slate-400">{t('overview_monitoring_unknown')}</span>}
           </div>
         </Card>
-        <Card className="flex flex-col justify-between">
+        <Card className="min-h-28 flex flex-col justify-between border-white/[0.08] bg-[#101a29]">
           <div className="flex items-center justify-between text-slate-400 text-xs">
             <span>{t('card_online_devices')}</span>
             <Cpu className="w-4 h-4 text-emerald-400" />
@@ -190,18 +196,19 @@ export const Overview: React.FC = () => {
           <div className="mt-2 text-2xl font-bold text-white">
             {devicesLoading || devicesError ? '— / —' : `${activeDevicesCount} / ${totalDevicesCount}`}
           </div>
+          <p className="mt-1 text-[10px] text-slate-500">{t('status_online')} / {t('devices_total_label')}</p>
         </Card>
-        <Card className="flex flex-col justify-between">
+        <Card className="min-h-28 flex flex-col justify-between border-white/[0.08] bg-[#101a29]">
           <div className="flex items-center justify-between text-slate-400 text-xs">
             <span>{t('card_events_total')}</span>
             <Bell className="w-4 h-4 text-yellow-400" />
           </div>
           <div className="mt-2 text-2xl font-bold text-white">{eventsLoading || eventsError ? '—' : events.length}</div>
         </Card>
-        <Card className="flex flex-col justify-between">
+        <Card className="min-h-28 flex flex-col justify-between border-white/[0.08] bg-[#101a29]">
           <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span>{t('card_temperature_humidity')}</span>
-            <Droplets className="w-4 h-4 text-cyan-400" />
+            <span>{t('rain_detection_title')}</span>
+            <CloudRain className="w-4 h-4 text-cyan-400" />
           </div>
           {sensorLoading ? (
             <p className="mt-2 text-xs text-slate-400">{t('overview_sensor_loading')}</p>
@@ -211,8 +218,8 @@ export const Overview: React.FC = () => {
             <p className="mt-2 text-xs text-slate-400">{t('overview_sensor_unavailable')}</p>
           ) : (
             <div className="mt-2">
-              <div className={`text-xl font-bold ${latestReading ? 'text-cyan-300' : 'text-slate-400'}`}>
-                {latestReading ? `${formatNumber(latestReading.temperature)}°C / ${formatNumber(latestReading.humidity)}%` : '— / —'}
+              <div className={`text-lg font-semibold ${latestReading?.rainDetected === true ? 'text-sky-300' : latestReading?.rainDetected === false ? 'text-emerald-300' : 'text-slate-400'}`}>
+                {latestReading && latestReading.rainDetected !== null ? t(latestReading.rainDetected ? 'rain_detected' : 'rain_not_detected') : t('rain_state_unknown')}
               </div>
               {isDeviceOffline && latestReading ? (
                 <p className="mt-1 text-[10px] leading-4 text-amber-300">
@@ -226,28 +233,31 @@ export const Overview: React.FC = () => {
             </div>
           )}
         </Card>
-        <Card className="flex flex-col justify-between">
+        <Card className="min-h-28 flex flex-col justify-between border-white/[0.08] bg-[#101a29]">
           <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span>{t('card_siren')}</span>
-            <Volume2 className="w-4 h-4 text-slate-400" />
+            <span>{t('rain_level_title')}</span>
+            <Activity className="w-4 h-4 text-cyan-400" />
           </div>
           <div className="mt-2">
-            <span className="text-2xl font-bold text-slate-400">—</span>
-            <p className="mt-1 text-[10px] text-slate-400">{t('overview_siren_unknown')}</p>
+            <span className="font-mono text-2xl font-bold text-cyan-300">{sensorLoading ? '…' : sensorError || sensorMissing || !latestReading || latestReading.rainLevel === null ? '—' : `ADC ${formatNumber(latestReading.rainLevel)}`}</span>
+            <p className="mt-1 text-[10px] text-slate-400">{t('rain_adc_scale')}</p>
+            {latestReading?.rainLevel !== null && latestReading?.rainLevel !== undefined && <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-cyan-400" style={{ width: `${Math.max(0, Math.min(100, latestReading.rainLevel / 4095 * 100))}%` }} /></div>}
           </div>
         </Card>
       </div>
 
-      <Card>
+      <Card className="border-white/[0.08] bg-[#101a29] p-4 sm:p-5">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-200">{t('chart_title')}</h2>
+          <div><h2 className="text-sm font-semibold text-slate-100">{t('chart_title')}</h2><p className="mt-1 text-[10px] text-slate-500">{t('rain_adc_scale')}</p></div>
           <span className="text-xs text-slate-400">{t('chart_timespan')}</span>
         </div>
-        <div className="h-64 w-full">
+        <div className="h-56 w-full sm:h-72">
           {sensorLoading ? (
             <div className="h-full flex items-center justify-center text-xs text-slate-400">{t('overview_sensor_loading')}</div>
           ) : sensorError ? (
             <div role="alert" className="h-full flex items-center justify-center text-xs text-red-400">{sensorError}</div>
+          ) : sensorMissing ? (
+            <div className="h-full flex items-center justify-center text-xs text-slate-400">{t('overview_sensor_unavailable')}</div>
           ) : chartData.length === 0 ? (
             <div className="h-full flex items-center justify-center text-xs text-slate-400">{t('overview_chart_empty')}</div>
           ) : (
@@ -255,12 +265,10 @@ export const Overview: React.FC = () => {
               <LineChart data={chartData} margin={{ top: 5, right: 20, left: -15, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                 <XAxis dataKey="time" stroke="#64748b" tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="temperature" stroke="#f97316" tick={{ fontSize: 11 }} domain={['auto', 'auto']} />
-                <YAxis yAxisId="humidity" orientation="right" stroke="#06b6d4" tick={{ fontSize: 11 }} domain={[0, 100]} />
-                <Tooltip contentStyle={{ backgroundColor: '#0b1329', borderColor: '#1e293b', fontSize: '12px', borderRadius: '6px' }} />
+                <YAxis stroke="#22d3ee" tick={{ fontSize: 10 }} domain={[0, 4095]} width={52} label={{ value: t('chart_adc_axis'), angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 10 }} />
+                <Tooltip formatter={(value: number) => [`ADC ${value}`, t('rain_level_title')]} contentStyle={{ backgroundColor: '#0b1320', borderColor: '#263548', fontSize: '12px', borderRadius: '8px' }} />
                 <Legend wrapperStyle={{ fontSize: '12px' }} />
-                <Line yAxisId="temperature" type="monotone" dataKey="temperature" name={t('chart_temp_label')} stroke="#f97316" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
-                <Line yAxisId="humidity" type="monotone" dataKey="humidity" name={t('chart_humidity_label')} stroke="#06b6d4" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+                <Line type="monotone" dataKey="rainLevel" name={t('chart_rain_level')} stroke="#06b6d4" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
               </LineChart>
             </ResponsiveContainer>
           )}

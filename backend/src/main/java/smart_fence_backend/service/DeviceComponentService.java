@@ -23,7 +23,7 @@ public class DeviceComponentService {
     private final DeviceRepository deviceRepository;
 
     private static final List<String> VALID_TYPES = List.of(
-            "DHT22", "LASER", "BUZZER", "CAMERA"
+            "RAIN_SENSOR", "LASER", "BUZZER", "CAMERA"
     );
 
     private static final List<String> VALID_STATUSES = List.of(

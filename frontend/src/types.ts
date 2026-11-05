@@ -18,7 +18,7 @@ export type EventStatus = 'unresolved' | 'resolved' | 'false_alarm';
 export type EventType =
   | 'laser_break'
   | 'vibration'
-  | 'high_humidity'
+  | 'rain_detected'
   | 'sensor_disconnected'
   | 'manual_test';
 
@@ -32,7 +32,7 @@ export interface FenceZone {
 }
 
 // Kiểu thiết bị
-export type DeviceType = 'laser' | 'humidity' | 'siren' | 'camera' | 'gateway' | 'unknown';
+export type DeviceType = 'laser' | 'rain_sensor' | 'siren' | 'camera';
 
 export interface LaserDetails {
   transmitterOnline: boolean;
@@ -83,15 +83,9 @@ export interface SensitivityConfig {
   laserSensitivity: number; // 10 - 100%
   confirmCount: number;     // 1 - 10 lần
   confirmWindow: number;    // 1, 2, 3, 5, 10 giây
-  humidityThreshold: number;// 30 - 95%
 }
 
 // Điểm dữ liệu biểu đồ
-export interface ChartPoint {
-  time: string;
-  humidity: number;
-}
-
 // Thông báo Toast
 export interface ToastInfo {
   id: string;

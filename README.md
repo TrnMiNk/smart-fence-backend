@@ -13,7 +13,7 @@ Các chức năng chính:
 - Gửi dữ liệu cảm biến và sự kiện về máy chủ qua MQTT.
 - Quản lý trạng thái hệ thống và gửi lệnh bật/tắt từ xa.
 - Hiển thị dữ liệu giám sát trên giao diện Web.
-- Theo dõi độ ẩm môi trường thông qua cảm biến DHT22.
+- Theo dõi trạng thái mưa và giá trị ADC thô từ cảm biến YL-83 (AO + DO).
 - Hiển thị hình ảnh camera ESP32-CAM thông qua luồng MJPEG.
 - Lưu trữ thông tin thiết bị, dữ liệu cảm biến và sự kiện trong MySQL.
 
@@ -43,7 +43,7 @@ Các chức năng chính:
                             │    ESP32    │
                             ├─────────────┤
                             │ Laser       │
-                            │ DHT22       │
+                            │ YL-83       │
                             │ Siren       │
                             │ ESP32-CAM   │
                             └─────────────┘
@@ -157,39 +157,37 @@ Có thể import bằng MySQL Workbench:
 
 Lưu ý: File `schema.sql` dùng để khởi tạo database mới. Không chạy lại trên database đã tồn tại đầy đủ các bảng vì các câu lệnh `CREATE TABLE` có thể bị lỗi trùng bảng. File chỉ chứa cấu trúc, không chứa dữ liệu thiết bị hoặc dữ liệu mẫu.
 
-#### 2.2. Cấu hình kết nối Backend
+#### 2.2. DataSource configuration
 
-Cấu hình thông tin kết nối MySQL trong:
+Configure the datasource through Spring Boot environment variables in the same terminal used to start Backend. This is the supported run configuration; `application-example.properties` is a reference file and is not loaded automatically.
 
-```text
-backend/src/main/resources/application.properties
+```powershell
+$env:SPRING_DATASOURCE_URL="jdbc:mysql://localhost:3306/smart_fence_iot"
+$env:SPRING_DATASOURCE_USERNAME="<MySQL username>"
+$env:SPRING_DATASOURCE_PASSWORD="<MySQL password>"
 ```
 
-Có thể tham khảo cấu trúc cấu hình trong `application-example.properties`.
+Provide all three values explicitly, especially outside local development. Hibernate uses `ddl-auto=none`; Backend will not create or alter the database schema. Do not put real credentials in project files.
 
-Điền thông tin phù hợp với máy tính cá nhân:
+#### 2.3. Migration
 
-- Database URL.
-- Database username.
-- Database password.
-
-Không đưa mật khẩu hoặc thông tin bí mật cá nhân lên GitHub.
-
-#### 2.3. Lưu ý về Migration
-
-Một số thay đổi cấu trúc database phục vụ chức năng bật/tắt hệ thống đã được phản ánh trong `database/schema.sql`.
-
-Nếu sử dụng database cũ, cần kiểm tra cấu trúc hiện tại trước khi áp dụng file migration thủ công tại:
-
-```text
-backend/src/main/resources/db/manual-migration/
-```
-
-Không chạy migration một cách máy móc trên database đã có các cột tương ứng, tránh lỗi trùng cột hoặc ảnh hưởng dữ liệu hiện có.
+See `database/MIGRATION_DHT22_TO_YL83.md`. The migration was performed manually on the current database; application startup does not run it. Preserve historical `sensor_readings` rows.
 
 ### Bước 3: Cấu hình MQTT Broker
 
-Cài đặt và khởi động Eclipse Mosquitto.
+Cài đặt và khởi động Eclipse Mosquitto. Backend MQTT uses these environment variables (host must be reachable by Backend):
+
+```powershell
+$env:MQTT_HOST="<broker-host>"
+$env:MQTT_PORT="1883"
+$env:MQTT_USERNAME="<broker-username>" # empty if authentication is disabled
+$env:MQTT_PASSWORD="<broker-password>" # empty if authentication is disabled
+$env:MQTT_CLIENT_ID="smart-fence-backend"
+```
+
+Use `MQTT_HOST=127.0.0.1` when the backend runs on the same machine as a local broker. If the backend runs in Docker and the broker runs on the Windows host, use `MQTT_HOST=host.docker.internal`; if both containers share a Docker network, use the broker's service/container DNS name. The backend does not assume a broker address in its application configuration.
+
+Backend starts when the broker is unavailable. A single background connection manager retries with exponential backoff, and retries failed topic subscriptions independently. Publishing while disconnected returns an error to the calling API.
 
 Backend cần được cấu hình để kết nối tới MQTT Broker đang hoạt động.
 
@@ -365,6 +363,16 @@ Chạy Unit Test:
 ```bash
 .\gradlew.bat test
 ```
+
+`contextLoads` uses the `test` profile and requires a dedicated MySQL test database. Set its credentials before running tests:
+
+```powershell
+$env:TEST_DB_URL="jdbc:mysql://localhost:3306/smart_fence_iot_test"
+$env:TEST_DB_USERNAME="<test database username>"
+$env:TEST_DB_PASSWORD="<test database password>"
+```
+
+The test profile disables MQTT and ignores `MQTT_HOST`, `MQTT_USERNAME`, and other production broker settings. Use a dedicated test database, never a production database. `ddl-auto=none` means the application will not create or alter its schema. Missing test database variables fail with an explicit `TEST_DB_*` configuration error; `contextLoads` remains enabled.
 
 ### Frontend
 

@@ -13,8 +13,7 @@ const PRESET_MODES: Exclude<SensitivityMode, 'custom'>[] = ['normal', 'strong_wi
 const sameValues = (a: SensitivityConfig, b: Omit<SensitivityConfig, 'mode'>) =>
   a.laserSensitivity === b.laserSensitivity &&
   a.confirmCount === b.confirmCount &&
-  a.confirmWindow === b.confirmWindow &&
-  a.humidityThreshold === b.humidityThreshold;
+  a.confirmWindow === b.confirmWindow;
 
 const identifyMode = (config: SensitivityConfig): SensitivityMode =>
   PRESET_MODES.find((mode) => sameValues(config, presetSensitivityConfigs[mode])) ?? 'custom';
@@ -22,8 +21,7 @@ const identifyMode = (config: SensitivityConfig): SensitivityMode =>
 const validConfig = (config: SensitivityConfig) =>
   Number.isInteger(config.laserSensitivity) && config.laserSensitivity >= 10 && config.laserSensitivity <= 100 &&
   Number.isInteger(config.confirmCount) && config.confirmCount >= 1 && config.confirmCount <= 10 &&
-  WINDOW_OPTIONS.includes(config.confirmWindow) &&
-  Number.isInteger(config.humidityThreshold) && config.humidityThreshold >= 30 && config.humidityThreshold <= 95;
+  WINDOW_OPTIONS.includes(config.confirmWindow);
 
 export const Sensitivity: React.FC = () => {
   const { sensitivityConfig, saveSensitivityConfig, resetSensitivityConfig, showToast } = useStore();
@@ -72,10 +70,10 @@ export const Sensitivity: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-[1100px] space-y-5 sm:space-y-7">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white">{t('sensitivity_title')}</h1>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-400">SYSTEM TUNING</p><h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">{t('sensitivity_title')}</h1>
           <p className="text-xs text-slate-400 mt-0.5">{t('sensitivity_desc')}</p>
         </div>
         <div className="flex items-center space-x-3">
@@ -120,10 +118,6 @@ export const Sensitivity: React.FC = () => {
             <select id="window-select" disabled={!isCustom} value={formConfig.confirmWindow} onChange={(e) => updateValue('confirmWindow', Number(e.target.value))} className="w-full bg-navy-900 border border-navy-700 rounded px-3 py-2 text-sm text-slate-100 disabled:opacity-50 focus:outline-none focus:border-blue-500">
               {WINDOW_OPTIONS.map((seconds) => <option key={seconds} value={seconds}>{seconds} {t('unit_seconds')}</option>)}
             </select>
-          </div>
-          <div className="space-y-2 bg-navy-850 p-4 rounded-lg border border-navy-800">
-            <label htmlFor="humidity-input" className="block text-sm font-medium text-slate-300">{t('humidity_threshold_label')}</label>
-            <input id="humidity-input" type="number" min="30" max="95" step="1" disabled={!isCustom} value={formConfig.humidityThreshold} onChange={(e) => updateValue('humidityThreshold', e.target.value === '' ? Number.NaN : Number(e.target.value))} className="w-full bg-navy-900 border border-navy-700 rounded px-3 py-2 text-sm text-slate-100 disabled:opacity-50 focus:outline-none focus:border-blue-500 font-mono" />
           </div>
         </form>
 

@@ -5,6 +5,7 @@ import { useStore } from '../store';
 import { Card } from '../components/Card';
 import { StatusBadge } from '../components/StatusBadge';
 import { t, TranslationKey } from '../i18n';
+import { RainSensorReading } from '../components/RainSensorReading';
 
 export const Devices: React.FC = () => {
   const { devices, devicesLoading, devicesError, selectedDeviceId, setSelectedDeviceId } = useStore();
@@ -19,7 +20,13 @@ export const Devices: React.FC = () => {
   };
 
   const filteredDevices = devices.filter((dev) => {
-    if (filterType !== 'all' && dev.type !== filterType) return false;
+    if (filterType !== 'all') {
+      const componentTypes = (dev.components ?? []).map((component) => component.type.trim().toUpperCase());
+      const filterComponentType: Record<string, string[]> = { laser: ['LASER', 'LASER_SENSOR'], rain_sensor: ['RAIN_SENSOR'], siren: ['BUZZER', 'SIREN'], camera: ['CAMERA'] };
+      if (filterType in filterComponentType) {
+        if (!filterComponentType[filterType].some((type) => componentTypes.includes(type))) return false;
+      } else if (dev.type !== filterType) return false;
+    }
     if (filterStatus === 'online' && !dev.isOnline) return false;
     if (filterStatus === 'offline' && dev.isOnline) return false;
     return true;
@@ -28,15 +35,15 @@ export const Devices: React.FC = () => {
   const selectedDevice = devices.find((d) => d.id === selectedDeviceId) || null;
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-[1500px] space-y-5 sm:space-y-7">
       <div>
-        <h1 className="text-xl font-bold text-white">{t('devices_title')}</h1>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-400">ASSET INVENTORY</p><h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">{t('devices_title')}</h1>
         <p className="text-xs text-slate-400 mt-0.5">{t('devices_desc')}</p>
       </div>
 
       {/* Bộ lọc */}
-      <Card>
-        <div className="grid grid-cols-2 gap-4">
+      <Card className="border-white/[0.08] bg-[#101a29]">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-xs text-slate-400 font-medium mb-1.5">{t('col_device_type')}</label>
             <select
@@ -46,11 +53,9 @@ export const Devices: React.FC = () => {
             >
               <option value="all">{t('all')}</option>
               <option value="laser">{t('device_type_laser')}</option>
-              <option value="humidity">{t('device_type_humidity')}</option>
+              <option value="rain_sensor">{t('device_type_rain_sensor')}</option>
               <option value="siren">{t('device_type_siren')}</option>
               <option value="camera">{t('device_type_camera')}</option>
-              <option value="gateway">{t('device_type_gateway')}</option>
-              <option value="unknown">{t('device_type_unknown')}</option>
             </select>
           </div>
 
@@ -70,7 +75,7 @@ export const Devices: React.FC = () => {
       </Card>
 
       {/* Bảng thiết bị */}
-      <Card>
+      <Card className="border-white/[0.08] bg-[#101a29] p-0">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-300">
             <thead className="bg-navy-850 text-slate-400 uppercase text-[11px] border-b border-navy-800">
@@ -98,7 +103,7 @@ export const Devices: React.FC = () => {
                   className="hover:bg-navy-850/60 cursor-pointer transition"
                 >
                   <td className="py-3 px-3 font-mono font-semibold text-blue-400">{dev.code || dev.id}</td>
-                  <td className="py-3 px-3 font-medium text-slate-200">{dev.displayName || (dev.nameKey ? t(dev.nameKey as TranslationKey) : t('device_type_unknown'))}</td>
+                  <td className="py-3 px-3 font-medium text-slate-200">{dev.displayName?.trim() || dev.code || dev.id}</td>
                   <td className="py-3 px-3">{t(`device_type_${dev.type}` as TranslationKey)}</td>
                   <td className="py-3 px-3 font-medium">
                     {dev.location === 'unknown' ? t('location_unavailable') : t(`loc_${dev.location === 'gateway' ? 'gateway' : `zone_${dev.location.toLowerCase()}`}` as TranslationKey)}
@@ -125,9 +130,9 @@ export const Devices: React.FC = () => {
               <button onClick={() => setSelectedDeviceId(null)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
 
-            <div className="p-5 space-y-2.5 text-xs">
+            <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto p-4 text-xs sm:p-5 space-y-2.5">
               <div className="flex justify-between py-1.5 border-b border-navy-800"><span className="text-slate-400">{t('col_device_id')}:</span><span className="font-mono font-bold text-slate-200">{selectedDevice.code || selectedDevice.id}</span></div>
-              <div className="flex justify-between py-1.5 border-b border-navy-800"><span className="text-slate-400">{t('col_device_name')}:</span><span className="font-medium text-slate-200">{selectedDevice.displayName || (selectedDevice.nameKey ? t(selectedDevice.nameKey as TranslationKey) : t('device_type_unknown'))}</span></div>
+              <div className="flex justify-between py-1.5 border-b border-navy-800"><span className="text-slate-400">{t('col_device_name')}:</span><span className="font-medium text-slate-200">{selectedDevice.displayName?.trim() || selectedDevice.code || selectedDevice.id}</span></div>
               <div className="flex justify-between py-1.5 border-b border-navy-800"><span className="text-slate-400">{t('col_device_type')}:</span><span>{t(`device_type_${selectedDevice.type}` as TranslationKey)}</span></div>
               <div className="flex justify-between py-1.5 border-b border-navy-800"><span className="text-slate-400">{t('col_device_location')}:</span><span>{selectedDevice.location === 'unknown' ? t('location_unavailable') : t(`loc_${selectedDevice.location === 'gateway' ? 'gateway' : `zone_${selectedDevice.location.toLowerCase()}`}` as TranslationKey)}</span></div>
               <div className="flex justify-between py-1.5 border-b border-navy-800"><span className="text-slate-400">{t('col_device_status')}:</span><StatusBadge status={selectedDevice.isOnline ? 'online' : 'offline'} /></div>
@@ -136,9 +141,12 @@ export const Devices: React.FC = () => {
               <div className="p-3 bg-navy-850 rounded border border-navy-800 space-y-2 my-2">
                 <div className="font-semibold text-slate-300 mb-1">{t('components_label')}</div>
                 {!selectedDevice.components?.length ? <p className="text-slate-400">{t('components_empty')}</p> : selectedDevice.components.map((component) => (
-                  <div key={component.id} className="flex justify-between gap-3 border-t border-navy-800 pt-2">
-                    <span className="text-slate-300">{component.name} <span className="text-slate-500">({component.code} · {component.type})</span></span>
+                  <div key={component.id} className="border-t border-navy-800 pt-2">
+                    <div className="flex justify-between gap-3">
+                    <span className="text-slate-300">{component.name} <span className="text-slate-500">({component.code} / {t(`component_type_${component.type.trim().toLowerCase()}` as TranslationKey)})</span></span>
                     <span className="text-slate-400">{component.status}</span>
+                    </div>
+                    {component.type.trim().toUpperCase() === 'RAIN_SENSOR' && <RainSensorReading componentId={component.id} />}
                   </div>
                 ))}
                 {!!selectedDevice.components?.length && <p className="pt-1 text-[10px] leading-4 text-slate-500">{t('component_status_note')}</p>}

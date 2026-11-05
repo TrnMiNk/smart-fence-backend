@@ -2,7 +2,6 @@
 package smart_fence_backend.entity;
 
 import jakarta.persistence.*;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -17,11 +16,11 @@ public class SensorReading {
     @JoinColumn(name = "component_id", nullable = false)
     private DeviceComponent component;
 
-    @Column(name = "temperature", precision = 5, scale = 2)
-    private BigDecimal temperature;
+    @Column(name = "rain_detected")
+    private Boolean rainDetected;
 
-    @Column(name = "humidity", nullable = false, precision = 5, scale = 2)
-    private BigDecimal humidity;
+    @Column(name = "rain_level")
+    private Integer rainLevel;
 
     @Column(name = "recorded_at", nullable = false)
     private LocalDateTime recordedAt;
@@ -48,20 +47,20 @@ public class SensorReading {
         this.component = component;
     }
 
-    public BigDecimal getTemperature() {
-        return temperature;
+    public Boolean getRainDetected() {
+        return rainDetected;
     }
 
-    public void setTemperature(BigDecimal temperature) {
-        this.temperature = temperature;
+    public void setRainDetected(Boolean rainDetected) {
+        this.rainDetected = rainDetected;
     }
 
-    public BigDecimal getHumidity() {
-        return humidity;
+    public Integer getRainLevel() {
+        return rainLevel;
     }
 
-    public void setHumidity(BigDecimal humidity) {
-        this.humidity = humidity;
+    public void setRainLevel(Integer rainLevel) {
+        this.rainLevel = rainLevel;
     }
 
     public LocalDateTime getRecordedAt() {

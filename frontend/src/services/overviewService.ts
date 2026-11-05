@@ -3,8 +3,8 @@ import { ApiError, apiRequest } from './apiClient';
 export interface SensorReading {
   id: number;
   componentId: number;
-  temperature: number | null;
-  humidity: number | null;
+  rainDetected: boolean | null;
+  rainLevel: number | null;
   /** Backend DTO serializes Java LocalDateTime as ISO local datetime without a timezone. */
   recordedAt: string;
 }
@@ -27,12 +27,11 @@ const isLocalDateTime = (value: unknown): value is string =>
 const parseSensorReading = (value: unknown): SensorReading => {
   if (typeof value !== 'object' || value === null) throw new Error('Backend trả về số đo cảm biến không hợp lệ.');
   const reading = value as Record<string, unknown>;
-  const validNumber = (item: unknown): item is number | null => item === null || (typeof item === 'number' && Number.isFinite(item));
   if (
     typeof reading.id !== 'number' ||
     typeof reading.componentId !== 'number' ||
-    !validNumber(reading.temperature) ||
-    !validNumber(reading.humidity) ||
+    !(typeof reading.rainDetected === 'boolean' || reading.rainDetected === null) ||
+    !(reading.rainLevel === null || (typeof reading.rainLevel === 'number' && Number.isInteger(reading.rainLevel) && reading.rainLevel >= 0 && reading.rainLevel <= 4095)) ||
     !isLocalDateTime(reading.recordedAt)
   ) {
     throw new Error('Backend trả về số đo cảm biến sai kiểu dữ liệu.');

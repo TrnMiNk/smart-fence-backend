@@ -11,7 +11,6 @@ import smart_fence_backend.entity.SensorReading;
 import smart_fence_backend.repository.DeviceComponentRepository;
 import smart_fence_backend.repository.SensorReadingRepository;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -38,14 +37,14 @@ public class SensorReadingService {
         return new SensorReadingResponse(
                 reading.getId(),
                 reading.getComponent().getId(),
-                reading.getTemperature(),
-                reading.getHumidity(),
+                reading.getRainDetected(),
+                reading.getRainLevel(),
                 reading.getRecordedAt()
         );
     }
 
-    // Kiem tra Component ton tai va dung loai DHT22
-    private DeviceComponent getDht22Component(Long componentId) {
+    // Validate component existence and type.
+    private DeviceComponent getRainSensorComponent(Long componentId) {
 
         if (componentId == null) {
             throw new IllegalArgumentException(
@@ -57,9 +56,9 @@ public class SensorReadingService {
                         new NoSuchElementException(
                                 "Sensor component not found!"));
 
-        if (!"DHT22".equalsIgnoreCase(component.getComponentType())) {
+        if (!"RAIN_SENSOR".equalsIgnoreCase(component.getComponentType())) {
             throw new IllegalArgumentException(
-                    "Component is not a DHT22 sensor!");
+                    "Component is not a rain sensor!");
         }
 
         return component;
@@ -69,7 +68,7 @@ public class SensorReadingService {
     @Transactional(readOnly = true)
     public List<SensorReadingResponse> getLatestReadings(Long componentId) {
 
-        getDht22Component(componentId);
+        getRainSensorComponent(componentId);
 
         return readingRepository
                 .findTop50ByComponent_IdOrderByRecordedAtDesc(componentId)
@@ -82,7 +81,7 @@ public class SensorReadingService {
     @Transactional(readOnly = true)
     public Optional<SensorReadingResponse> getLatestReading(Long componentId) {
 
-        getDht22Component(componentId);
+        getRainSensorComponent(componentId);
 
         return readingRepository
                 .findTop1ByComponent_IdOrderByRecordedAtDesc(componentId)
@@ -96,7 +95,7 @@ public class SensorReadingService {
             LocalDateTime start,
             LocalDateTime end) {
 
-        getDht22Component(componentId);
+        getRainSensorComponent(componentId);
 
         if (start == null || end == null || start.isAfter(end)) {
             throw new IllegalArgumentException("Invalid time range!");
@@ -120,31 +119,22 @@ public class SensorReadingService {
                     "Request cannot be null!");
         }
 
-        DeviceComponent component = getDht22Component(componentId);
+        DeviceComponent component = getRainSensorComponent(componentId);
+        Boolean rainDetected = request.getRainDetected();
+        Integer rainLevel = request.getRainLevel();
 
-        BigDecimal humidity = request.getHumidity();
-        BigDecimal temperature = request.getTemperature();
-
-        if (humidity == null
-                || humidity.compareTo(BigDecimal.ZERO) < 0
-                || humidity.compareTo(BigDecimal.valueOf(100)) > 0) {
-
-            throw new IllegalArgumentException(
-                    "Humidity must be between 0 and 100!");
+        if (rainDetected == null) {
+            throw new IllegalArgumentException("rainDetected is required!");
         }
-
-        if (temperature == null
-                || temperature.compareTo(BigDecimal.valueOf(-40)) < 0
-                || temperature.compareTo(BigDecimal.valueOf(80)) > 0) {
-
+        if (rainLevel == null || rainLevel < 0 || rainLevel > 4095) {
             throw new IllegalArgumentException(
-                    "Temperature must be between -40 and 80!");
+                    "rainLevel must be between 0 and 4095!");
         }
 
         SensorReading reading = new SensorReading();
         reading.setComponent(component);
-        reading.setTemperature(temperature);
-        reading.setHumidity(humidity);
+        reading.setRainDetected(rainDetected);
+        reading.setRainLevel(rainLevel);
 
         SensorReading savedReading =
                 readingRepository.saveAndFlush(reading);

@@ -11,11 +11,11 @@ export const SettingsModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
       onClick={() => setIsSettingsOpen(false)}
     >
       <div
-        className="w-full max-w-md bg-navy-900 border border-navy-700 rounded-lg shadow-xl overflow-hidden text-slate-100"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border border-navy-700 bg-navy-900 shadow-xl text-slate-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Modal */}
